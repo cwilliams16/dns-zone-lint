@@ -1,0 +1,20 @@
+{
+  "name": "dns-zone-lint",
+  "version": "0.1.0",
+  "description": "Parses and lints BIND-style DNS zone files",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "dns-zone-lint": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  }
+}
