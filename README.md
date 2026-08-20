@@ -35,7 +35,12 @@ Given a zone file like:
 
 ```
 $TTL 3600
-@       IN  SOA  ns1.example.com. hostmaster.example.com. 2026081901 7200 3600 1209600 3600
+@       IN  SOA  ns1.example.com. hostmaster.example.com. (
+                 2026081901 ; serial
+                 7200       ; refresh
+                 3600       ; retry
+                 1209600    ; expire
+                 3600 )     ; minimum
 @       IN  NS   ns1.example.com.
 @       IN  A    203.0.113.10
 www     IN  CNAME @
@@ -50,22 +55,20 @@ it prints something like:
   {
     "source": "example.com.zone",
     "records": [
-      { "line": 3, "name": "@", "ttl": 3600, "recordClass": "IN", "type": "NS", "data": "ns1.example.com." },
-      { "line": 4, "name": "@", "ttl": 3600, "recordClass": "IN", "type": "A", "data": "203.0.113.10" },
-      { "line": 5, "name": "www", "ttl": 3600, "recordClass": "IN", "type": "CNAME", "data": "@" },
-      { "line": 6, "name": "mail", "ttl": 3600, "recordClass": "IN", "type": "MX", "data": "10 mail.example.com." },
-      { "line": 7, "name": "mail", "ttl": 3600, "recordClass": "IN", "type": "TXT", "data": "\"v=spf1 -all\"" }
+      { "line": 2, "name": "@", "ttl": 3600, "recordClass": "IN", "type": "SOA", "data": "ns1.example.com. hostmaster.example.com. 2026081901 7200 3600 1209600 3600" },
+      { "line": 8, "name": "@", "ttl": 3600, "recordClass": "IN", "type": "NS", "data": "ns1.example.com." },
+      { "line": 9, "name": "@", "ttl": 3600, "recordClass": "IN", "type": "A", "data": "203.0.113.10" },
+      { "line": 10, "name": "www", "ttl": 3600, "recordClass": "IN", "type": "CNAME", "data": "@" },
+      { "line": 11, "name": "mail", "ttl": 3600, "recordClass": "IN", "type": "MX", "data": "10 mail.example.com." },
+      { "line": 12, "name": "mail", "ttl": 3600, "recordClass": "IN", "type": "TXT", "data": "\"v=spf1 -all\"" }
     ],
-    "errors": [
-      { "line": 2, "message": "SOA record is missing its data field", "raw": "..." }
-    ]
+    "errors": []
   }
 ]
 ```
 
-(The SOA line above errors in this version because it spans a single line
-with more fields than the current parser expects to see on one line without
-parentheses — see the note in the roadmap below.)
+The SOA record's `line` is the line the record started on, even though its
+data was spread across six physical lines with parentheses.
 
 The tool exits with status 1 if any source produced errors, so it's usable
 as a pre-commit or CI check on zone files kept in a repository.
@@ -83,9 +86,11 @@ generate-zone | dns-zone-lint - existing.zone
   MX, NS, TXT, PTR, SRV, SOA, CAA)
 - A record isn't missing its data field
 - A blank-name continuation line isn't the first line of a source
+- Parentheses used to spread a record across multiple lines are balanced
 
-It does not yet validate the *contents* of the data field (an A record with
-`not-an-ip` as its address will parse fine today). See the roadmap.
+It does not yet expand `$ORIGIN` into relative names, and it does not
+validate the *contents* of the data field (an A record with `not-an-ip` as
+its address will parse fine today). See the roadmap.
 
 ## Why this exists
 

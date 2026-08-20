@@ -56,10 +56,80 @@ function tokenize(line: string): string[] {
   return tokens;
 }
 
+interface LogicalLine {
+  lineNumber: number;
+  text: string;
+  raw: string;
+  unbalanced: boolean;
+}
+
+// Joins records that use parentheses to spread their data across several
+// physical lines (SOA is the usual case). Parentheses are grouping syntax,
+// not data, so RFC 1035 treats them as equivalent to whitespace once
+// matched: each open paren suspends end-of-line-ends-record until its
+// matching close paren shows up, possibly many lines later. Comments are
+// stripped per physical line first, since a ';' inside the parenthesized
+// group still only comments out the rest of that one line.
+function joinParenthesizedRecords(rawLines: string[]): LogicalLine[] {
+  const logicalLines: LogicalLine[] = [];
+  let i = 0;
+
+  while (i < rawLines.length) {
+    const startLine = i + 1;
+    const rawParts: string[] = [];
+    const textParts: string[] = [];
+    let depth = 0;
+    let malformed = false;
+    let inQuotes = false;
+
+    for (;;) {
+      rawParts.push(rawLines[i]);
+      const withoutComment = stripComment(rawLines[i]);
+      let piece = '';
+      for (const ch of withoutComment) {
+        if (ch === '"') {
+          inQuotes = !inQuotes;
+          piece += ch;
+        } else if (ch === '(' && !inQuotes) {
+          depth++;
+          piece += ' ';
+        } else if (ch === ')' && !inQuotes) {
+          depth--;
+          piece += ' ';
+          if (depth < 0) {
+            malformed = true;
+            depth = 0;
+          }
+        } else {
+          piece += ch;
+        }
+      }
+      textParts.push(piece);
+
+      if (depth === 0) {
+        break;
+      }
+      i++;
+      if (i >= rawLines.length) {
+        malformed = true;
+        break;
+      }
+    }
+
+    logicalLines.push({
+      lineNumber: startLine,
+      text: textParts.join(' '),
+      raw: rawParts.join('\n'),
+      unbalanced: malformed,
+    });
+    i++;
+  }
+
+  return logicalLines;
+}
+
 // Parses a single BIND-style master file. This is a simplified reading of
-// RFC 1035 section 5: it does not expand $ORIGIN into relative names and it
-// does not follow parenthesized records across multiple lines yet, so a SOA
-// record spanning several lines will come through as several parse errors.
+// RFC 1035 section 5: it does not expand $ORIGIN into relative names yet.
 export function parseZoneFile(text: string): ParseResult {
   const records: ParsedRecord[] = [];
   const errors: ParseError[] = [];
@@ -67,12 +137,22 @@ export function parseZoneFile(text: string): ParseResult {
   let defaultTTL: number | null = null;
   let lastName: string | null = null;
 
-  const rawLines = text.split(/\r\n|\n/);
+  const logicalLines = joinParenthesizedRecords(text.split(/\r\n|\n/));
 
-  for (let i = 0; i < rawLines.length; i++) {
-    const lineNumber = i + 1;
-    const rawLine = rawLines[i];
-    const withoutComment = stripComment(rawLine);
+  for (const logicalLine of logicalLines) {
+    const lineNumber = logicalLine.lineNumber;
+    const rawLine = logicalLine.raw;
+
+    if (logicalLine.unbalanced) {
+      errors.push({
+        line: lineNumber,
+        message: 'unbalanced parentheses in record',
+        raw: rawLine,
+      });
+      continue;
+    }
+
+    const withoutComment = logicalLine.text;
 
     if (withoutComment.trim().length === 0) {
       continue;
