@@ -128,14 +128,43 @@ function joinParenthesizedRecords(rawLines: string[]): LogicalLine[] {
   return logicalLines;
 }
 
+// A name ending in '.' is already fully qualified. '@' stands for the
+// current origin itself. Anything else is relative and gets the origin
+// appended, the same way BIND reads an owner name.
+function expandName(label: string, origin: string | null): string {
+  if (label === '@') {
+    return origin ?? label;
+  }
+  if (label.endsWith('.')) {
+    return label;
+  }
+  if (origin === null) {
+    return label;
+  }
+  return `${label}.${origin}`;
+}
+
+// $ORIGIN's own argument follows the same absolute-vs-relative rule as an
+// owner name, except '@' has no meaning here since there's no origin yet.
+function resolveOrigin(value: string, currentOrigin: string | null): string | null {
+  if (value.endsWith('.')) {
+    return value;
+  }
+  if (currentOrigin === null) {
+    return null;
+  }
+  return `${value}.${currentOrigin}`;
+}
+
 // Parses a single BIND-style master file. This is a simplified reading of
-// RFC 1035 section 5: it does not expand $ORIGIN into relative names yet.
+// RFC 1035 section 5.
 export function parseZoneFile(text: string): ParseResult {
   const records: ParsedRecord[] = [];
   const errors: ParseError[] = [];
 
   let defaultTTL: number | null = null;
   let lastName: string | null = null;
+  let origin: string | null = null;
 
   const logicalLines = joinParenthesizedRecords(text.split(/\r\n|\n/));
 
@@ -178,8 +207,28 @@ export function parseZoneFile(text: string): ParseResult {
             raw: rawLine,
           });
         }
+      } else if (directive === '$ORIGIN') {
+        const value = tokens[1];
+        if (!value) {
+          errors.push({
+            line: lineNumber,
+            message: '$ORIGIN requires a domain name',
+            raw: rawLine,
+          });
+        } else {
+          const resolved = resolveOrigin(value, origin);
+          if (resolved === null) {
+            errors.push({
+              line: lineNumber,
+              message: '$ORIGIN value must be fully qualified until an origin is already set',
+              raw: rawLine,
+            });
+          } else {
+            origin = resolved;
+          }
+        }
       }
-      // $ORIGIN and other directives are accepted but not yet acted on.
+      // Other directives are accepted but not yet acted on.
       continue;
     }
 
@@ -196,7 +245,7 @@ export function parseZoneFile(text: string): ParseResult {
       }
       name = lastName;
     } else {
-      name = tokens[idx++];
+      name = expandName(tokens[idx++], origin);
       lastName = name;
     }
 

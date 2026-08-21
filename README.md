@@ -88,9 +88,16 @@ generate-zone | dns-zone-lint - existing.zone
 - A blank-name continuation line isn't the first line of a source
 - Parentheses used to spread a record across multiple lines are balanced
 
-It does not yet expand `$ORIGIN` into relative names, and it does not
-validate the *contents* of the data field (an A record with `not-an-ip` as
-its address will parse fine today). See the roadmap.
+Owner names are expanded against `$ORIGIN`: a relative name gets the current
+origin appended, `@` is replaced with the origin itself, and a name already
+ending in `.` is left alone. A `$ORIGIN` line whose own value is relative is
+only accepted once an earlier `$ORIGIN` has established a base to expand it
+against.
+
+It does not yet validate the *contents* of the data field (an A record with
+`not-an-ip` as its address will parse fine today), and it doesn't expand the
+domain names that show up inside record data (an NS or CNAME target is left
+as written). See the roadmap.
 
 ## Why this exists
 
