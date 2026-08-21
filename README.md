@@ -62,7 +62,8 @@ it prints something like:
       { "line": 11, "name": "mail", "ttl": 3600, "recordClass": "IN", "type": "MX", "data": "10 mail.example.com." },
       { "line": 12, "name": "mail", "ttl": 3600, "recordClass": "IN", "type": "TXT", "data": "\"v=spf1 -all\"" }
     ],
-    "errors": []
+    "errors": [],
+    "warnings": []
   }
 ]
 ```
@@ -94,10 +95,21 @@ ending in `.` is left alone. A `$ORIGIN` line whose own value is relative is
 only accepted once an earlier `$ORIGIN` has established a base to expand it
 against.
 
-It does not yet validate the *contents* of the data field (an A record with
-`not-an-ip` as its address will parse fine today), and it doesn't expand the
-domain names that show up inside record data (an NS or CNAME target is left
-as written). See the roadmap.
+Records that parse structurally fine can still have data that doesn't match
+their type; those show up as `warnings` rather than `errors`, since the
+record itself is still reported. Checked so far:
+
+- A: the data is a valid IPv4 address
+- AAAA: the data is a valid IPv6 address
+- MX: `<preference> <exchange>`, preference is a 16-bit number
+- SRV: `<priority> <weight> <port> <target>`, all three numbers fit in 16 bits
+- CAA: `<flag> <tag> <value>`, flag is an 8-bit number
+- SOA: all five trailing numeric fields (serial, refresh, retry, expire,
+  minimum) are present and fit in 32 bits
+
+CNAME, NS, PTR, and TXT data isn't validated yet, and no record type has its
+embedded domain names (an NS or CNAME target, an SOA's mname/rname) expanded
+against `$ORIGIN` or checked for well-formedness. See the roadmap.
 
 ## Why this exists
 

@@ -38,8 +38,10 @@ Reads one or more zone files, or standard input if no files are given.
 Pass "-" as a file argument to read stdin at that position, which lets you
 mix piped input with files on the same command line.
 
-Prints a JSON report per source with parsed records and any syntax errors,
-and exits with status 1 if any source contained errors.`);
+Prints a JSON report per source with parsed records, any syntax errors, and
+any data warnings (bad IP addresses, out-of-range numeric fields, etc.).
+Exits with status 1 if any source contained errors; warnings alone do not
+affect the exit code.`);
 }
 
 function main(): void {
@@ -65,6 +67,7 @@ function main(): void {
       source: source.label,
       records: result.records,
       errors: result.errors,
+      warnings: result.warnings,
     };
   });
 

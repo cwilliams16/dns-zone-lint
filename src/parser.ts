@@ -1,3 +1,4 @@
+import { isIPv4, isIPv6 } from 'node:net';
 import type { ParsedRecord, ParseError, ParseResult, RecordType } from './types.js';
 
 const KNOWN_TYPES: ReadonlySet<string> = new Set([
@@ -156,11 +157,74 @@ function resolveOrigin(value: string, currentOrigin: string | null): string | nu
   return `${value}.${currentOrigin}`;
 }
 
+function isUintN(token: string, max: number): boolean {
+  return /^\d+$/.test(token) && Number(token) <= max;
+}
+
+// Field-level checks for the record types where getting this wrong is a
+// common copy-paste mistake (a swapped octet, a priority left as a string).
+// This only covers syntax BIND itself would reject; it doesn't second-guess
+// values that are merely unusual.
+function validateRecordData(type: RecordType, dataTokens: string[]): string[] {
+  switch (type) {
+    case 'A':
+      if (dataTokens.length !== 1 || !isIPv4(dataTokens[0])) {
+        return [`A record data is not a valid IPv4 address: ${dataTokens.join(' ')}`];
+      }
+      return [];
+    case 'AAAA':
+      if (dataTokens.length !== 1 || !isIPv6(dataTokens[0])) {
+        return [`AAAA record data is not a valid IPv6 address: ${dataTokens.join(' ')}`];
+      }
+      return [];
+    case 'MX':
+      if (dataTokens.length !== 2) {
+        return ['MX record data must be "<preference> <exchange>"'];
+      }
+      if (!isUintN(dataTokens[0], 65535)) {
+        return [`MX preference is not a valid 16-bit number: ${dataTokens[0]}`];
+      }
+      return [];
+    case 'SRV': {
+      if (dataTokens.length !== 4) {
+        return ['SRV record data must be "<priority> <weight> <port> <target>"'];
+      }
+      const [priority, weight, port] = dataTokens;
+      const problems: string[] = [];
+      if (!isUintN(priority, 65535)) problems.push(`SRV priority is not a valid 16-bit number: ${priority}`);
+      if (!isUintN(weight, 65535)) problems.push(`SRV weight is not a valid 16-bit number: ${weight}`);
+      if (!isUintN(port, 65535)) problems.push(`SRV port is not a valid 16-bit number: ${port}`);
+      return problems;
+    }
+    case 'CAA':
+      if (dataTokens.length < 3) {
+        return ['CAA record data must be "<flag> <tag> <value>"'];
+      }
+      if (!isUintN(dataTokens[0], 255)) {
+        return [`CAA flag is not a valid 8-bit number: ${dataTokens[0]}`];
+      }
+      return [];
+    case 'SOA': {
+      if (dataTokens.length !== 7) {
+        return ['SOA record data must be "<mname> <rname> <serial> <refresh> <retry> <expire> <minimum>"'];
+      }
+      const fieldNames = ['serial', 'refresh', 'retry', 'expire', 'minimum'];
+      return dataTokens
+        .slice(2)
+        .map((token, i) => (isUintN(token, 4294967295) ? null : `SOA ${fieldNames[i]} is not a valid number: ${token}`))
+        .filter((message): message is string => message !== null);
+    }
+    default:
+      return [];
+  }
+}
+
 // Parses a single BIND-style master file. This is a simplified reading of
 // RFC 1035 section 5.
 export function parseZoneFile(text: string): ParseResult {
   const records: ParsedRecord[] = [];
   const errors: ParseError[] = [];
+  const warnings: ParseError[] = [];
 
   let defaultTTL: number | null = null;
   let lastName: string | null = null;
@@ -279,7 +343,8 @@ export function parseZoneFile(text: string): ParseResult {
     }
 
     const type = typeToken.toUpperCase() as RecordType;
-    const data = tokens.slice(idx).join(' ');
+    const dataTokens = tokens.slice(idx);
+    const data = dataTokens.join(' ');
 
     if (data.length === 0) {
       errors.push({
@@ -291,7 +356,11 @@ export function parseZoneFile(text: string): ParseResult {
     }
 
     records.push({ line: lineNumber, name, ttl, recordClass, type, data });
+
+    for (const message of validateRecordData(type, dataTokens)) {
+      warnings.push({ line: lineNumber, message, raw: rawLine });
+    }
   }
 
-  return { records, errors };
+  return { records, errors, warnings };
 }
