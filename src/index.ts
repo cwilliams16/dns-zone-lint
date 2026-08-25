@@ -31,7 +31,7 @@ function printUsage(): void {
   console.log(`dns-zone-lint - parse and validate BIND-style DNS zone files
 
 Usage:
-  dns-zone-lint [file ...]
+  dns-zone-lint [--strict] [file ...]
   cat zone.txt | dns-zone-lint
 
 Reads one or more zone files, or standard input if no files are given.
@@ -41,16 +41,20 @@ mix piped input with files on the same command line.
 Prints a JSON report per source with parsed records, any syntax errors, and
 any data warnings (bad IP addresses, out-of-range numeric fields, etc.).
 Exits with status 1 if any source contained errors; warnings alone do not
-affect the exit code.`);
+affect the exit code unless --strict is given, in which case warnings are
+treated the same as errors.`);
 }
 
 function main(): void {
-  const args = process.argv.slice(2);
+  const rawArgs = process.argv.slice(2);
 
-  if (args.includes('--help') || args.includes('-h')) {
+  if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
     printUsage();
     return;
   }
+
+  const strict = rawArgs.includes('--strict');
+  const args = rawArgs.filter((arg) => arg !== '--strict');
 
   let sources: Source[];
   try {
@@ -73,7 +77,9 @@ function main(): void {
 
   console.log(JSON.stringify(report, null, 2));
 
-  if (report.some((entry) => entry.errors.length > 0)) {
+  const hasErrors = report.some((entry) => entry.errors.length > 0);
+  const hasWarnings = report.some((entry) => entry.warnings.length > 0);
+  if (hasErrors || (strict && hasWarnings)) {
     process.exitCode = 1;
   }
 }

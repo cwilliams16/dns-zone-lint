@@ -72,7 +72,14 @@ The SOA record's `line` is the line the record started on, even though its
 data was spread across six physical lines with parentheses.
 
 The tool exits with status 1 if any source produced errors, so it's usable
-as a pre-commit or CI check on zone files kept in a repository.
+as a pre-commit or CI check on zone files kept in a repository. Pass
+`--strict` to also fail on warnings, for a CI setup where questionable data
+(a malformed CAA value, an SOA serial that isn't a number) should block the
+build rather than just get flagged:
+
+```
+dns-zone-lint --strict example.com.zone
+```
 
 You can also mix stdin with files by passing `-` as one of the arguments:
 
