@@ -118,6 +118,16 @@ CNAME, NS, PTR, and TXT data isn't validated yet, and no record type has its
 embedded domain names (an NS or CNAME target, an SOA's mname/rname) expanded
 against `$ORIGIN` or checked for well-formedness. See the roadmap.
 
+## Tests
+
+```
+npm test
+```
+
+runs the parser tests through Node's built-in test runner. No test
+framework is installed; `src/parser.test.ts` uses `node:test` and
+`node:assert/strict` directly.
+
 ## Why this exists
 
 Most DNS tooling either wants a full resolver stack or is bundled into a
