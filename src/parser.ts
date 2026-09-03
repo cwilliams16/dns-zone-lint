@@ -214,6 +214,21 @@ function validateRecordData(type: RecordType, dataTokens: string[]): string[] {
         .map((token, i) => (isUintN(token, 4294967295) ? null : `SOA ${fieldNames[i]} is not a valid number: ${token}`))
         .filter((message): message is string => message !== null);
     }
+    case 'CNAME':
+    case 'NS':
+    case 'PTR':
+      if (dataTokens.length !== 1) {
+        return [`${type} record data must be a single domain name`];
+      }
+      return [];
+    case 'TXT':
+      // Each token is either a complete quoted string or nothing at all: the
+      // tokenizer only splits on whitespace outside quotes, so an unterminated
+      // quote swallows the rest of the line into one token that won't look
+      // like a valid string.
+      return dataTokens
+        .filter((token) => !(token.length >= 2 && token.startsWith('"') && token.endsWith('"')))
+        .map((token) => `TXT record data contains an unquoted or unterminated string: ${token}`);
     default:
       return [];
   }
@@ -344,9 +359,8 @@ export function parseZoneFile(text: string): ParseResult {
 
     const type = typeToken.toUpperCase() as RecordType;
     const dataTokens = tokens.slice(idx);
-    const data = dataTokens.join(' ');
 
-    if (data.length === 0) {
+    if (dataTokens.length === 0) {
       errors.push({
         line: lineNumber,
         message: `${type} record is missing its data field`,
@@ -354,6 +368,15 @@ export function parseZoneFile(text: string): ParseResult {
       });
       continue;
     }
+
+    // These three types are nothing but a domain name, so the same
+    // owner-name expansion rules ($ORIGIN, '@', trailing '.') apply to
+    // their data. Anything other than a single token is left as-is and
+    // caught by validateRecordData below instead.
+    const data =
+      (type === 'CNAME' || type === 'NS' || type === 'PTR') && dataTokens.length === 1
+        ? expandName(dataTokens[0], origin)
+        : dataTokens.join(' ');
 
     records.push({ line: lineNumber, name, ttl, recordClass, type, data });
 

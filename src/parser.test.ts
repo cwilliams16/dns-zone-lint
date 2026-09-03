@@ -157,4 +157,55 @@ describe('record data validation', () => {
     assert.equal(result.warnings.length, 1);
     assert.match(result.warnings[0].message, /SOA retry is not a valid number/);
   });
+
+  test('a CNAME with more than one token is a warning', () => {
+    const result = parseZoneFile('www IN CNAME host1 host2\n');
+    assert.equal(result.warnings.length, 1);
+    assert.match(result.warnings[0].message, /CNAME record data must be a single domain name/);
+  });
+
+  test('an NS record with more than one token is a warning', () => {
+    const result = parseZoneFile('@ IN NS ns1 ns2\n');
+    assert.equal(result.warnings.length, 1);
+    assert.match(result.warnings[0].message, /NS record data must be a single domain name/);
+  });
+
+  test('a PTR record with more than one token is a warning', () => {
+    const result = parseZoneFile('10.0.0.10.in-addr.arpa IN PTR host1 host2\n');
+    assert.equal(result.warnings.length, 1);
+    assert.match(result.warnings[0].message, /PTR record data must be a single domain name/);
+  });
+
+  test('a TXT record with an unterminated quote is a warning', () => {
+    const result = parseZoneFile('www IN TXT "unterminated\n');
+    assert.equal(result.warnings.length, 1);
+    assert.match(result.warnings[0].message, /unquoted or unterminated string/);
+  });
+
+  test('a TXT record with multiple properly quoted strings produces no warning', () => {
+    const result = parseZoneFile('www IN TXT "part one" "part two"\n');
+    assert.equal(result.warnings.length, 0);
+  });
+});
+
+describe('embedded domain name expansion', () => {
+  test('a relative CNAME target is expanded against $ORIGIN', () => {
+    const result = parseZoneFile('$ORIGIN example.com.\nwww IN CNAME host\n');
+    assert.equal(result.records[0].data, 'host.example.com.');
+  });
+
+  test('a CNAME target already fully qualified is left alone', () => {
+    const result = parseZoneFile('$ORIGIN example.com.\nwww IN CNAME host.other.net.\n');
+    assert.equal(result.records[0].data, 'host.other.net.');
+  });
+
+  test('an NS target of "@" expands to the origin itself', () => {
+    const result = parseZoneFile('$ORIGIN example.com.\n@ IN NS @\n');
+    assert.equal(result.records[0].data, 'example.com.');
+  });
+
+  test('a relative PTR target is expanded against $ORIGIN', () => {
+    const result = parseZoneFile('$ORIGIN example.com.\n10 IN PTR host\n');
+    assert.equal(result.records[0].data, 'host.example.com.');
+  });
 });

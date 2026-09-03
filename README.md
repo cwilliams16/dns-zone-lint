@@ -113,10 +113,16 @@ record itself is still reported. Checked so far:
 - CAA: `<flag> <tag> <value>`, flag is an 8-bit number
 - SOA: all five trailing numeric fields (serial, refresh, retry, expire,
   minimum) are present and fit in 32 bits
+- CNAME, NS, PTR: the data is a single domain name (not, say, a CNAME
+  pointed at two targets by mistake)
+- TXT: every token is a complete quoted string; an unterminated `"` shows
+  up as a warning instead of silently swallowing the rest of the line
 
-CNAME, NS, PTR, and TXT data isn't validated yet, and no record type has its
-embedded domain names (an NS or CNAME target, an SOA's mname/rname) expanded
-against `$ORIGIN` or checked for well-formedness. See the roadmap.
+CNAME, NS, and PTR targets are also expanded against `$ORIGIN` the same way
+owner names are, so `www IN CNAME host` under `$ORIGIN example.com.` reports
+`host.example.com.` rather than the literal `host`. SOA's mname/rname fields
+aren't expanded yet, since SOA data is stored as one opaque string rather
+than split into fields. See the roadmap.
 
 ## Tests
 
