@@ -373,10 +373,17 @@ export function parseZoneFile(text: string): ParseResult {
     // owner-name expansion rules ($ORIGIN, '@', trailing '.') apply to
     // their data. Anything other than a single token is left as-is and
     // caught by validateRecordData below instead.
-    const data =
-      (type === 'CNAME' || type === 'NS' || type === 'PTR') && dataTokens.length === 1
-        ? expandName(dataTokens[0], origin)
-        : dataTokens.join(' ');
+    let data: string;
+    if ((type === 'CNAME' || type === 'NS' || type === 'PTR') && dataTokens.length === 1) {
+      data = expandName(dataTokens[0], origin);
+    } else if (type === 'SOA' && dataTokens.length >= 2) {
+      // mname and rname are domain names too; the rest (serial, refresh,
+      // retry, expire, minimum) are plain numbers with nothing to expand.
+      const [mname, rname, ...rest] = dataTokens;
+      data = [expandName(mname, origin), expandName(rname, origin), ...rest].join(' ');
+    } else {
+      data = dataTokens.join(' ');
+    }
 
     records.push({ line: lineNumber, name, ttl, recordClass, type, data });
 

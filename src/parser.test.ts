@@ -208,4 +208,14 @@ describe('embedded domain name expansion', () => {
     const result = parseZoneFile('$ORIGIN example.com.\n10 IN PTR host\n');
     assert.equal(result.records[0].data, 'host.example.com.');
   });
+
+  test('relative SOA mname and rname are both expanded against $ORIGIN', () => {
+    const result = parseZoneFile('$ORIGIN example.com.\n@ IN SOA ns1 hostmaster 1 2 3 4 5\n');
+    assert.equal(result.records[0].data, 'ns1.example.com. hostmaster.example.com. 1 2 3 4 5');
+  });
+
+  test('an SOA rname of "@" expands to the origin itself', () => {
+    const result = parseZoneFile('$ORIGIN example.com.\n@ IN SOA ns1.example.com. @ 1 2 3 4 5\n');
+    assert.equal(result.records[0].data, 'ns1.example.com. example.com. 1 2 3 4 5');
+  });
 });

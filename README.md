@@ -120,9 +120,10 @@ record itself is still reported. Checked so far:
 
 CNAME, NS, and PTR targets are also expanded against `$ORIGIN` the same way
 owner names are, so `www IN CNAME host` under `$ORIGIN example.com.` reports
-`host.example.com.` rather than the literal `host`. SOA's mname/rname fields
-aren't expanded yet, since SOA data is stored as one opaque string rather
-than split into fields. See the roadmap.
+`host.example.com.` rather than the literal `host`. SOA's mname and rname
+fields get the same treatment: `@ IN SOA ns1 hostmaster ...` under that same
+origin reports `ns1.example.com.` and `hostmaster.example.com.` instead of
+the literal relative names.
 
 ## Tests
 
