@@ -87,6 +87,38 @@ You can also mix stdin with files by passing `-` as one of the arguments:
 generate-zone | dns-zone-lint - existing.zone
 ```
 
+Pass `--format=zone` to get the parsed records back as zone syntax instead
+of JSON, one record per line with names and embedded domain names fully
+qualified against `$ORIGIN`:
+
+```
+dns-zone-lint --format=zone example.com.zone
+```
+
+Running it against the same example zone file from above prints:
+
+```
+@ 3600 IN SOA ns1.example.com. hostmaster.example.com. 2026081901 7200 3600 1209600 3600
+@ 3600 IN NS ns1.example.com.
+@ 3600 IN A 203.0.113.10
+www 3600 IN CNAME @
+mail 3600 IN MX 10 mail.example.com.
+mail 3600 IN TXT "v=spf1 -all"
+```
+
+Note the SOA data is now on one line instead of six, since the parser
+already flattened the parenthesized group. Owner names stay relative here
+because that file never sets `$ORIGIN`; add one and CNAME/NS/PTR/SOA
+targets expand right along with the owner names, the same as they do in
+the JSON output.
+
+In this mode errors and warnings are written to stderr as
+`label:line: message` instead of being embedded in the output, so stdout is
+always plain zone syntax you can redirect straight to a file. This is
+meant as a normalizer: run a zone file through it to expand every name
+against its origin and flatten multi-line records onto one line each,
+without hand-tracking `$ORIGIN` yourself.
+
 ## What it checks right now
 
 - Line structure: name, optional TTL, optional class, record type, data
