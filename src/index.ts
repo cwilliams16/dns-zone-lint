@@ -37,7 +37,7 @@ function printUsage(): void {
   console.log(`dns-zone-lint - parse and validate BIND-style DNS zone files
 
 Usage:
-  dns-zone-lint [--strict] [--format=json|zone] [file ...]
+  dns-zone-lint [--strict] [--format=json|zone] [--relative] [file ...]
   cat zone.txt | dns-zone-lint
 
 Reads one or more zone files, or standard input if no files are given.
@@ -53,7 +53,11 @@ which case warnings are treated the same as errors.
 Pass --format=zone to print the parsed records back out as zone syntax
 instead of JSON, one record per line with names and embedded domain names
 fully qualified. Errors and warnings go to stderr as "label:line: message"
-instead of being embedded in the output.`);
+instead of being embedded in the output.
+
+Add --relative to that to print names and embedded domain names relative to
+the source's own final $ORIGIN instead, with a leading $ORIGIN line. Only
+has an effect together with --format=zone.`);
 }
 
 function main(): void {
@@ -65,11 +69,13 @@ function main(): void {
   }
 
   const strict = rawArgs.includes('--strict');
+  const relative = rawArgs.includes('--relative');
   const args: string[] = [];
   let format: 'json' | 'zone' = 'json';
 
   for (const arg of rawArgs) {
     if (arg === '--strict') continue;
+    if (arg === '--relative') continue;
     if (arg.startsWith('--format=')) {
       const value = arg.slice('--format='.length);
       if (value !== 'json' && value !== 'zone') {
@@ -107,7 +113,7 @@ function main(): void {
       if (sources.length > 1) {
         console.log(`; source: ${source.label}`);
       }
-      console.log(formatZone(result.records));
+      console.log(formatZone(result.records, relative ? result.origin : null));
     }
   } else {
     const report = results.map(({ source, result }) => ({
@@ -115,6 +121,7 @@ function main(): void {
       records: result.records,
       errors: result.errors,
       warnings: result.warnings,
+      origin: result.origin,
     }));
     console.log(JSON.stringify(report, null, 2));
   }

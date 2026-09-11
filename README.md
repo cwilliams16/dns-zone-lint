@@ -63,7 +63,8 @@ it prints something like:
       { "line": 12, "name": "mail", "ttl": 3600, "recordClass": "IN", "type": "TXT", "data": "\"v=spf1 -all\"" }
     ],
     "errors": [],
-    "warnings": []
+    "warnings": [],
+    "origin": null
   }
 ]
 ```
@@ -111,6 +112,30 @@ already flattened the parenthesized group. Owner names stay relative here
 because that file never sets `$ORIGIN`; add one and CNAME/NS/PTR/SOA
 targets expand right along with the owner names, the same as they do in
 the JSON output.
+
+Add `--relative` to get that expansion back out in relative form instead,
+which is closer to what a hand-written zone file looks like:
+
+```
+dns-zone-lint --format=zone --relative example.com.zone
+```
+
+```
+$ORIGIN example.com.
+@ 3600 IN SOA ns1 hostmaster 2026081901 7200 3600 1209600 3600
+@ 3600 IN NS ns1
+@ 3600 IN A 203.0.113.10
+www 3600 IN CNAME @
+mail 3600 IN MX 10 mail.example.com.
+mail 3600 IN TXT "v=spf1 -all"
+```
+
+This uses the source's own final `$ORIGIN` (the JSON output's `origin`
+field, if you're inspecting it that way), so it only has an effect on
+records that came from a file that actually set one; a source with no
+`$ORIGIN` renders the same either way. A name outside that origin (or, for
+CNAME/NS/PTR/SOA, an embedded domain name outside it) is left fully
+qualified rather than guessing at a shorter form.
 
 In this mode errors and warnings are written to stderr as
 `label:line: message` instead of being embedded in the output, so stdout is

@@ -84,6 +84,16 @@ describe('$ORIGIN and owner name expansion', () => {
     assert.equal(result.errors.length, 1);
     assert.match(result.errors[0].message, /fully qualified/);
   });
+
+  test('the result exposes the final origin the source ended on', () => {
+    const result = parseZoneFile('$ORIGIN example.com.\n$ORIGIN sub\nwww IN A 203.0.113.10\n');
+    assert.equal(result.origin, 'sub.example.com.');
+  });
+
+  test('the result origin is null when the source never sets one', () => {
+    const result = parseZoneFile('www IN A 203.0.113.10\n');
+    assert.equal(result.origin, null);
+  });
 });
 
 describe('parenthesized multi-line records', () => {

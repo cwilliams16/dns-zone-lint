@@ -29,4 +29,5 @@ export interface ParseResult {
   records: ParsedRecord[];
   errors: ParseError[];
   warnings: ParseError[];
+  origin: string | null;
 }

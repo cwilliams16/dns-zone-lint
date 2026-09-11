@@ -392,5 +392,5 @@ export function parseZoneFile(text: string): ParseResult {
     }
   }
 
-  return { records, errors, warnings };
+  return { records, errors, warnings, origin };
 }
