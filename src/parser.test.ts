@@ -196,6 +196,39 @@ describe('record data validation', () => {
     const result = parseZoneFile('www IN TXT "part one" "part two"\n');
     assert.equal(result.warnings.length, 0);
   });
+
+  test('a valid NAPTR record produces no warning', () => {
+    const result = parseZoneFile('@ IN NAPTR 100 10 "u" "E2U+sip" "!^.*$!sip:info@example.com!" .\n');
+    assert.equal(result.warnings.length, 0);
+  });
+
+  test('a NAPTR record with an unquoted flags field is a warning', () => {
+    const result = parseZoneFile('@ IN NAPTR 100 10 u "E2U+sip" "!^.*$!sip:info@example.com!" .\n');
+    assert.equal(result.warnings.length, 1);
+    assert.match(result.warnings[0].message, /flags must be a quoted string/);
+  });
+
+  test('a valid DS record produces no warning', () => {
+    const result = parseZoneFile('example.com. IN DS 12345 8 2 49FD46E6C4B45C55D4AC69CBD3CD34AC1AFE51DE\n');
+    assert.equal(result.warnings.length, 0);
+  });
+
+  test('a DS record with a non-hex digest is a warning', () => {
+    const result = parseZoneFile('example.com. IN DS 12345 8 2 not-hex\n');
+    assert.equal(result.warnings.length, 1);
+    assert.match(result.warnings[0].message, /digest is not a valid hex string/);
+  });
+
+  test('a valid DNSKEY record produces no warning', () => {
+    const result = parseZoneFile('example.com. IN DNSKEY 257 3 8 AwEAAagvux3sED9jIQ==\n');
+    assert.equal(result.warnings.length, 0);
+  });
+
+  test('a DNSKEY record with a non-numeric protocol is a warning', () => {
+    const result = parseZoneFile('example.com. IN DNSKEY 257 x 8 AwEAAagvux3sED9jIQ==\n');
+    assert.equal(result.warnings.length, 1);
+    assert.match(result.warnings[0].message, /protocol is not a valid 8-bit number/);
+  });
 });
 
 describe('embedded domain name expansion', () => {

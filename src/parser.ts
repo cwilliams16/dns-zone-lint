@@ -12,6 +12,9 @@ const KNOWN_TYPES: ReadonlySet<string> = new Set([
   'SRV',
   'SOA',
   'CAA',
+  'NAPTR',
+  'DS',
+  'DNSKEY',
 ]);
 
 const KNOWN_CLASSES: ReadonlySet<string> = new Set(['IN', 'CH', 'HS']);
@@ -204,6 +207,51 @@ function validateRecordData(type: RecordType, dataTokens: string[]): string[] {
         return [`CAA flag is not a valid 8-bit number: ${dataTokens[0]}`];
       }
       return [];
+    case 'NAPTR': {
+      if (dataTokens.length !== 6) {
+        return ['NAPTR record data must be "<order> <preference> <flags> <service> <regexp> <replacement>"'];
+      }
+      const [order, preference, flags, service, regexp] = dataTokens;
+      const problems: string[] = [];
+      if (!isUintN(order, 65535)) problems.push(`NAPTR order is not a valid 16-bit number: ${order}`);
+      if (!isUintN(preference, 65535)) problems.push(`NAPTR preference is not a valid 16-bit number: ${preference}`);
+      for (const [fieldName, token] of [
+        ['flags', flags],
+        ['service', service],
+        ['regexp', regexp],
+      ] as const) {
+        if (!(token.length >= 2 && token.startsWith('"') && token.endsWith('"'))) {
+          problems.push(`NAPTR ${fieldName} must be a quoted string: ${token}`);
+        }
+      }
+      return problems;
+    }
+    case 'DS': {
+      if (dataTokens.length < 4) {
+        return ['DS record data must be "<key tag> <algorithm> <digest type> <digest>"'];
+      }
+      const [keyTag, algorithm, digestType] = dataTokens;
+      const problems: string[] = [];
+      if (!isUintN(keyTag, 65535)) problems.push(`DS key tag is not a valid 16-bit number: ${keyTag}`);
+      if (!isUintN(algorithm, 255)) problems.push(`DS algorithm is not a valid 8-bit number: ${algorithm}`);
+      if (!isUintN(digestType, 255)) problems.push(`DS digest type is not a valid 8-bit number: ${digestType}`);
+      const digest = dataTokens.slice(3).join('');
+      if (!/^[0-9a-fA-F]+$/.test(digest)) {
+        problems.push(`DS digest is not a valid hex string: ${dataTokens.slice(3).join(' ')}`);
+      }
+      return problems;
+    }
+    case 'DNSKEY': {
+      if (dataTokens.length < 4) {
+        return ['DNSKEY record data must be "<flags> <protocol> <algorithm> <public key>"'];
+      }
+      const [flags, protocol, algorithm] = dataTokens;
+      const problems: string[] = [];
+      if (!isUintN(flags, 65535)) problems.push(`DNSKEY flags is not a valid 16-bit number: ${flags}`);
+      if (!isUintN(protocol, 255)) problems.push(`DNSKEY protocol is not a valid 8-bit number: ${protocol}`);
+      if (!isUintN(algorithm, 255)) problems.push(`DNSKEY algorithm is not a valid 8-bit number: ${algorithm}`);
+      return problems;
+    }
     case 'SOA': {
       if (dataTokens.length !== 7) {
         return ['SOA record data must be "<mname> <rname> <serial> <refresh> <retry> <expire> <minimum>"'];

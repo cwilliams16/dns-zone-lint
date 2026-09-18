@@ -148,7 +148,7 @@ without hand-tracking `$ORIGIN` yourself.
 
 - Line structure: name, optional TTL, optional class, record type, data
 - Record type is one of the types this version knows about (A, AAAA, CNAME,
-  MX, NS, TXT, PTR, SRV, SOA, CAA)
+  MX, NS, TXT, PTR, SRV, SOA, CAA, NAPTR, DS, DNSKEY)
 - A record isn't missing its data field
 - A blank-name continuation line isn't the first line of a source
 - Parentheses used to spread a record across multiple lines are balanced
@@ -174,6 +174,13 @@ record itself is still reported. Checked so far:
   pointed at two targets by mistake)
 - TXT: every token is a complete quoted string; an unterminated `"` shows
   up as a warning instead of silently swallowing the rest of the line
+- NAPTR: `<order> <preference> <flags> <service> <regexp> <replacement>`,
+  order and preference are 16-bit numbers, flags/service/regexp are quoted
+  strings
+- DS: `<key tag> <algorithm> <digest type> <digest>`, key tag is a 16-bit
+  number, algorithm and digest type are 8-bit numbers, digest is hex
+- DNSKEY: `<flags> <protocol> <algorithm> <public key>`, flags is a 16-bit
+  number, protocol and algorithm are 8-bit numbers
 
 CNAME, NS, and PTR targets are also expanded against `$ORIGIN` the same way
 owner names are, so `www IN CNAME host` under `$ORIGIN example.com.` reports

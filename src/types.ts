@@ -8,7 +8,10 @@ export type RecordType =
   | 'PTR'
   | 'SRV'
   | 'SOA'
-  | 'CAA';
+  | 'CAA'
+  | 'NAPTR'
+  | 'DS'
+  | 'DNSKEY';
 
 export interface ParsedRecord {
   line: number;
