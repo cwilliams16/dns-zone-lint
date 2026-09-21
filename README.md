@@ -152,6 +152,10 @@ without hand-tracking `$ORIGIN` yourself.
 - A record isn't missing its data field
 - A blank-name continuation line isn't the first line of a source
 - Parentheses used to spread a record across multiple lines are balanced
+- A name has at most one CNAME record, and if it has one, no other record
+  type shares that name (name comparison happens after `$ORIGIN` expansion,
+  so `www` and `www.example.com.` under that origin are treated as the same
+  name)
 
 Owner names are expanded against `$ORIGIN`: a relative name gets the current
 origin appended, `@` is replaced with the origin itself, and a name already

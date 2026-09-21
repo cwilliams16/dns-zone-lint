@@ -231,6 +231,41 @@ describe('record data validation', () => {
   });
 });
 
+describe('CNAME conflicts', () => {
+  test('two CNAME records for the same name is an error', () => {
+    const result = parseZoneFile('www IN CNAME host1.example.com.\nwww IN CNAME host2.example.com.\n');
+    assert.equal(result.records.length, 2);
+    assert.equal(result.errors.length, 1);
+    assert.equal(result.errors[0].line, 2);
+    assert.match(result.errors[0].message, /duplicate CNAME record for www \(first defined at line 1\)/);
+  });
+
+  test('a CNAME sharing a name with another record type is an error', () => {
+    const result = parseZoneFile('www IN CNAME host.example.com.\nwww IN A 203.0.113.10\n');
+    assert.equal(result.records.length, 2);
+    assert.equal(result.errors.length, 1);
+    assert.equal(result.errors[0].line, 2);
+    assert.match(result.errors[0].message, /www has a CNAME record \(line 1\) and a A record/);
+  });
+
+  test('the CNAME record itself is still reported when it conflicts', () => {
+    const result = parseZoneFile('www IN CNAME host.example.com.\nwww IN A 203.0.113.10\n');
+    assert.equal(result.records[0].type, 'CNAME');
+    assert.equal(result.records[1].type, 'A');
+  });
+
+  test('a CNAME with no other records on its name produces no error', () => {
+    const result = parseZoneFile('www IN CNAME host.example.com.\nother IN A 203.0.113.10\n');
+    assert.equal(result.errors.length, 0);
+  });
+
+  test('$ORIGIN expansion is applied before names are compared', () => {
+    const result = parseZoneFile('$ORIGIN example.com.\nwww IN CNAME host\nwww.example.com. IN A 203.0.113.10\n');
+    assert.equal(result.errors.length, 1);
+    assert.match(result.errors[0].message, /www\.example\.com\. has a CNAME record/);
+  });
+});
+
 describe('embedded domain name expansion', () => {
   test('a relative CNAME target is expanded against $ORIGIN', () => {
     const result = parseZoneFile('$ORIGIN example.com.\nwww IN CNAME host\n');

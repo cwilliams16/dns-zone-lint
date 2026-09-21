@@ -282,6 +282,52 @@ function validateRecordData(type: RecordType, dataTokens: string[]): string[] {
   }
 }
 
+// RFC 1035 3.6.2: a name may have at most one CNAME record, and if it has
+// one, no other record type is allowed for that same name (the whole point
+// of CNAME is that lookups for the name go elsewhere instead). This can
+// only be checked once every record on a name is known, so it runs as a
+// pass over the finished record list rather than inline during parsing.
+function validateCnameConflicts(records: ParsedRecord[]): ParseError[] {
+  const byName = new Map<string, ParsedRecord[]>();
+  for (const record of records) {
+    const group = byName.get(record.name);
+    if (group) {
+      group.push(record);
+    } else {
+      byName.set(record.name, [record]);
+    }
+  }
+
+  const errors: ParseError[] = [];
+  for (const group of byName.values()) {
+    const cnames = group.filter((record) => record.type === 'CNAME');
+    if (cnames.length === 0) {
+      continue;
+    }
+
+    const [first, ...rest] = cnames;
+    for (const record of rest) {
+      errors.push({
+        line: record.line,
+        message: `duplicate CNAME record for ${record.name} (first defined at line ${first.line})`,
+        raw: '',
+      });
+    }
+
+    if (group.length > cnames.length) {
+      for (const record of group) {
+        if (record.type === 'CNAME') continue;
+        errors.push({
+          line: record.line,
+          message: `${record.name} has a CNAME record (line ${first.line}) and a ${record.type} record; CNAME must be the only record for its name`,
+          raw: '',
+        });
+      }
+    }
+  }
+  return errors;
+}
+
 // Parses a single BIND-style master file. This is a simplified reading of
 // RFC 1035 section 5.
 export function parseZoneFile(text: string): ParseResult {
@@ -439,6 +485,9 @@ export function parseZoneFile(text: string): ParseResult {
       warnings.push({ line: lineNumber, message, raw: rawLine });
     }
   }
+
+  errors.push(...validateCnameConflicts(records));
+  errors.sort((a, b) => a.line - b.line);
 
   return { records, errors, warnings, origin };
 }
