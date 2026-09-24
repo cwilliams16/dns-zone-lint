@@ -185,6 +185,10 @@ record itself is still reported. Checked so far:
   number, algorithm and digest type are 8-bit numbers, digest is hex
 - DNSKEY: `<flags> <protocol> <algorithm> <public key>`, flags is a 16-bit
   number, protocol and algorithm are 8-bit numbers
+- Any record whose TTL disagrees with an earlier record of the same name and
+  type (an RRset is supposed to share one TTL; a resolver just uses whichever
+  it saw first and ignores the rest, so a mismatch usually means a stale
+  hand-edit rather than something to reject outright)
 
 CNAME, NS, and PTR targets are also expanded against `$ORIGIN` the same way
 owner names are, so `www IN CNAME host` under `$ORIGIN example.com.` reports

@@ -266,6 +266,38 @@ describe('CNAME conflicts', () => {
   });
 });
 
+describe('TTL conflicts', () => {
+  test('two records for the same name and type with different TTLs is a warning', () => {
+    const result = parseZoneFile('www 3600 IN A 203.0.113.10\nwww 1800 IN A 203.0.113.11\n');
+    assert.equal(result.records.length, 2);
+    assert.equal(result.warnings.length, 1);
+    assert.equal(result.warnings[0].line, 2);
+    assert.match(result.warnings[0].message, /TTL 1800 for www A conflicts with earlier TTL 3600 at line 1/);
+  });
+
+  test('the same name with different record types can have different TTLs', () => {
+    const result = parseZoneFile('www 3600 IN A 203.0.113.10\nwww 1800 IN AAAA 2001:db8::1\n');
+    assert.equal(result.warnings.length, 0);
+  });
+
+  test('matching TTLs across an RRset produce no warning', () => {
+    const result = parseZoneFile('ns 3600 IN A 203.0.113.10\nns 3600 IN A 203.0.113.11\n');
+    assert.equal(result.warnings.length, 0);
+  });
+
+  test('a TTL inherited from $TTL is compared the same as an explicit one', () => {
+    const result = parseZoneFile('$TTL 3600\nwww IN A 203.0.113.10\nwww 1800 IN A 203.0.113.11\n');
+    assert.equal(result.warnings.length, 1);
+    assert.match(result.warnings[0].message, /conflicts with earlier TTL 3600/);
+  });
+
+  test('$ORIGIN expansion is applied before names are compared for TTL conflicts', () => {
+    const result = parseZoneFile('$ORIGIN example.com.\nwww 3600 IN A 203.0.113.10\nwww.example.com. 1800 IN A 203.0.113.11\n');
+    assert.equal(result.warnings.length, 1);
+    assert.match(result.warnings[0].message, /TTL 1800 for www\.example\.com\. A conflicts/);
+  });
+});
+
 describe('embedded domain name expansion', () => {
   test('a relative CNAME target is expanded against $ORIGIN', () => {
     const result = parseZoneFile('$ORIGIN example.com.\nwww IN CNAME host\n');

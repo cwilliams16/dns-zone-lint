@@ -328,6 +328,40 @@ function validateCnameConflicts(records: ParsedRecord[]): ParseError[] {
   return errors;
 }
 
+// RFC 2181 5.2: every record in an RRset (same name and type) is supposed to
+// carry the same TTL. A resolver that sees mismatched TTLs just uses
+// whichever one it saw first and ignores the rest, so this is a warning
+// rather than an error, but it usually means the zone file was hand-edited
+// and one of the duplicate lines never got its TTL updated.
+function validateTtlConflicts(records: ParsedRecord[]): ParseError[] {
+  const byNameAndType = new Map<string, ParsedRecord[]>();
+  for (const record of records) {
+    if (record.ttl === null) continue;
+    const key = `${record.name}\u0000${record.type}`;
+    const group = byNameAndType.get(key);
+    if (group) {
+      group.push(record);
+    } else {
+      byNameAndType.set(key, [record]);
+    }
+  }
+
+  const warnings: ParseError[] = [];
+  for (const group of byNameAndType.values()) {
+    const [first, ...rest] = group;
+    for (const record of rest) {
+      if (record.ttl !== first.ttl) {
+        warnings.push({
+          line: record.line,
+          message: `TTL ${record.ttl} for ${record.name} ${record.type} conflicts with earlier TTL ${first.ttl} at line ${first.line}`,
+          raw: '',
+        });
+      }
+    }
+  }
+  return warnings;
+}
+
 // Parses a single BIND-style master file. This is a simplified reading of
 // RFC 1035 section 5.
 export function parseZoneFile(text: string): ParseResult {
@@ -488,6 +522,9 @@ export function parseZoneFile(text: string): ParseResult {
 
   errors.push(...validateCnameConflicts(records));
   errors.sort((a, b) => a.line - b.line);
+
+  warnings.push(...validateTtlConflicts(records));
+  warnings.sort((a, b) => a.line - b.line);
 
   return { records, errors, warnings, origin };
 }
