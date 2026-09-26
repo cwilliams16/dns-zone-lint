@@ -298,6 +298,34 @@ describe('TTL conflicts', () => {
   });
 });
 
+describe('NS glue records', () => {
+  test('an in-zone NS target with no A or AAAA record is a warning', () => {
+    const result = parseZoneFile('$ORIGIN example.com.\n@ IN NS ns1\n');
+    assert.equal(result.warnings.length, 1);
+    assert.match(result.warnings[0].message, /ns1\.example\.com\., which has no A or AAAA record.*missing glue/);
+  });
+
+  test('an in-zone NS target with a matching A record produces no warning', () => {
+    const result = parseZoneFile('$ORIGIN example.com.\n@ IN NS ns1\nns1 IN A 203.0.113.10\n');
+    assert.equal(result.warnings.length, 0);
+  });
+
+  test('an in-zone NS target with a matching AAAA record produces no warning', () => {
+    const result = parseZoneFile('$ORIGIN example.com.\n@ IN NS ns1\nns1 IN AAAA 2001:db8::1\n');
+    assert.equal(result.warnings.length, 0);
+  });
+
+  test('an out-of-zone NS target needs no glue', () => {
+    const result = parseZoneFile('$ORIGIN example.com.\n@ IN NS ns1.otherdomain.net.\n');
+    assert.equal(result.warnings.length, 0);
+  });
+
+  test('with no known origin, an unresolvable NS target is not flagged', () => {
+    const result = parseZoneFile('@ IN NS ns1.example.com.\n');
+    assert.equal(result.warnings.length, 0);
+  });
+});
+
 describe('embedded domain name expansion', () => {
   test('a relative CNAME target is expanded against $ORIGIN', () => {
     const result = parseZoneFile('$ORIGIN example.com.\nwww IN CNAME host\n');

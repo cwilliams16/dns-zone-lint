@@ -189,6 +189,11 @@ record itself is still reported. Checked so far:
   type (an RRset is supposed to share one TTL; a resolver just uses whichever
   it saw first and ignores the rest, so a mismatch usually means a stale
   hand-edit rather than something to reject outright)
+- An NS record whose target is inside the zone (the origin itself or a
+  subdomain of it) but has no matching A or AAAA record anywhere in the
+  source: that target needs a glue record here, since a resolver can't look
+  its address up without already having it. This only runs when `$ORIGIN` is
+  known; a target outside the zone is resolved elsewhere and needs no glue.
 
 CNAME, NS, and PTR targets are also expanded against `$ORIGIN` the same way
 owner names are, so `www IN CNAME host` under `$ORIGIN example.com.` reports

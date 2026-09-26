@@ -362,6 +362,41 @@ function validateTtlConflicts(records: ParsedRecord[]): ParseError[] {
   return warnings;
 }
 
+// A delegation only needs a glue A/AAAA record in this zone when its NS
+// target is itself inside the zone (the origin or a subdomain of it): a
+// resolver can't find that address without the zone handing it over
+// directly, since asking would mean already knowing it. An NS target outside
+// the zone is resolved by querying its own zone, so it needs no glue here.
+// Without a known origin there's no way to tell in-zone from out-of-zone, so
+// the check is skipped rather than guessed at.
+function validateNsGlue(records: ParsedRecord[], origin: string | null): ParseError[] {
+  if (origin === null) {
+    return [];
+  }
+
+  const addressNames = new Set<string>();
+  for (const record of records) {
+    if (record.type === 'A' || record.type === 'AAAA') {
+      addressNames.add(record.name);
+    }
+  }
+
+  const inZone = (name: string): boolean => name === origin || name.endsWith(`.${origin}`);
+
+  const warnings: ParseError[] = [];
+  for (const record of records) {
+    if (record.type !== 'NS') continue;
+    const target = record.data;
+    if (!inZone(target) || addressNames.has(target)) continue;
+    warnings.push({
+      line: record.line,
+      message: `NS record for ${record.name} points at ${target}, which has no A or AAAA record in this zone (missing glue)`,
+      raw: '',
+    });
+  }
+  return warnings;
+}
+
 // Parses a single BIND-style master file. This is a simplified reading of
 // RFC 1035 section 5.
 export function parseZoneFile(text: string): ParseResult {
@@ -524,6 +559,7 @@ export function parseZoneFile(text: string): ParseResult {
   errors.sort((a, b) => a.line - b.line);
 
   warnings.push(...validateTtlConflicts(records));
+  warnings.push(...validateNsGlue(records, origin));
   warnings.sort((a, b) => a.line - b.line);
 
   return { records, errors, warnings, origin };
