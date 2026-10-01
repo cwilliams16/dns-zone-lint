@@ -82,6 +82,17 @@ build rather than just get flagged:
 dns-zone-lint --strict example.com.zone
 ```
 
+For CI logs where the parsed records are just noise, `--json-errors-only`
+prints a single flat JSON array of the issues and nothing else:
+
+```
+dns-zone-lint --json-errors-only example.com.zone
+```
+
+Each entry has `source`, `kind` (`error` or `warning`), `line`, `message`,
+and `raw`. A clean zone prints `[]`. The exit code follows the same rules as
+above, including `--strict`. It can't be combined with `--format=zone`.
+
 You can also mix stdin with files by passing `-` as one of the arguments:
 
 ```

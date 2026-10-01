@@ -37,7 +37,8 @@ function printUsage(): void {
   console.log(`dns-zone-lint - parse and validate BIND-style DNS zone files
 
 Usage:
-  dns-zone-lint [--strict] [--format=json|zone] [--relative] [file ...]
+  dns-zone-lint [--strict] [--format=json|zone] [--relative]
+                [--json-errors-only] [file ...]
   cat zone.txt | dns-zone-lint
 
 Reads one or more zone files, or standard input if no files are given.
@@ -57,7 +58,12 @@ instead of being embedded in the output.
 
 Add --relative to that to print names and embedded domain names relative to
 the source's own final $ORIGIN instead, with a leading $ORIGIN line. Only
-has an effect together with --format=zone.`);
+has an effect together with --format=zone.
+
+Pass --json-errors-only to print only the issues, as one flat JSON array of
+{source, kind, line, message, raw} objects (kind is "error" or "warning"),
+without the records. The exit code is the same as without the flag. It
+can't be combined with --format=zone.`);
 }
 
 function main(): void {
@@ -70,12 +76,14 @@ function main(): void {
 
   const strict = rawArgs.includes('--strict');
   const relative = rawArgs.includes('--relative');
+  const errorsOnly = rawArgs.includes('--json-errors-only');
   const args: string[] = [];
   let format: 'json' | 'zone' = 'json';
 
   for (const arg of rawArgs) {
     if (arg === '--strict') continue;
     if (arg === '--relative') continue;
+    if (arg === '--json-errors-only') continue;
     if (arg.startsWith('--format=')) {
       const value = arg.slice('--format='.length);
       if (value !== 'json' && value !== 'zone') {
@@ -87,6 +95,12 @@ function main(): void {
       continue;
     }
     args.push(arg);
+  }
+
+  if (errorsOnly && format === 'zone') {
+    console.error('--json-errors-only cannot be combined with --format=zone');
+    process.exitCode = 1;
+    return;
   }
 
   let sources: Source[];
@@ -102,7 +116,15 @@ function main(): void {
   const hasErrors = results.some(({ result }) => result.errors.length > 0);
   const hasWarnings = results.some(({ result }) => result.warnings.length > 0);
 
-  if (format === 'zone') {
+  if (errorsOnly) {
+    // Flat list so a CI step can count or filter it without walking per-source
+    // objects; an empty array means nothing was flagged.
+    const issues = results.flatMap(({ source, result }) => [
+      ...result.errors.map((issue) => ({ source: source.label, kind: 'error', ...issue })),
+      ...result.warnings.map((issue) => ({ source: source.label, kind: 'warning', ...issue })),
+    ]);
+    console.log(JSON.stringify(issues, null, 2));
+  } else if (format === 'zone') {
     for (const { source, result } of results) {
       for (const error of result.errors) {
         console.error(formatIssue(source.label, 'error', error));
